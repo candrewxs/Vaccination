@@ -1,0 +1,64 @@
+---
+title: "Vaccination"
+author: "Coffy Andrews-Guo"
+date: "9/20/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(readxl)
+```
+
+## Raw data
+
+
+```{r}
+# Read XLSX file from Github
+github_link <- "https://github.com/candrewxs/Vaccination/blob/main/israeli_vaccination_data_analysis_start.xlsx?raw=true"
+library(httr)
+temp_file <- tempfile(fileext = ".xlsx")
+req <- GET(github_link, 
+           # authenticate using GITHUB_PATH
+           authenticate(Sys.getenv("GITHUB_PATH"), ""),
+           # write result to disk
+           write_disk(path = temp_file))
+tab <- readxl::read_excel(temp_file, sheet = NULL, range = "A1:F6", col_names = FALSE)
+unlink(temp_file)
+
+# coerce dataframe to a tibble
+as_tibble(tab)
+
+# extract by position
+
+```
+
+
+
+
+```{r}
+library(tidyr)
+olddata_wide <- read.table(header = TRUE, text = '')
+olddata_
+```
+
+
+
+
+
+```{r}
+# change the 1st row to header row
+colnames(tab) <- as.character(unlist(tab[1,]))
+(tab2 = tab[-1, ])
+
+```
+
+
+
+```{r}
+df <- read_xlsx(url("https://github.com/candrewxs/Vaccination/blob/main/israeli_vaccination_data_analysis_start.xlsx?raw=true"), sheet = NULL, range = "A1:F6", col_names = FALSE, col_types = "guess", na = "", trim_ws = TRUE, skip = 0)
+```
+
+
+
