@@ -1,17 +1,25 @@
 ---
 title: "Vaccination"
 author: "Coffy Andrews-Guo"
-date: "9/20/2021"
+collaborator: "Chinedu Onyeka"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
 output: html_document
 ---
 
+Collaborator: "Chinedu Onyeka"
+
+
+
+Load the required libraries
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 library(tidyverse)
+library(dplyr)
 library(readxl)
+library(plyr)
 ```
 
-## Raw data
+## Assignment
 
 
 ```{r}
@@ -24,41 +32,155 @@ req <- GET(github_link,
            authenticate(Sys.getenv("GITHUB_PATH"), ""),
            # write result to disk
            write_disk(path = temp_file))
-tab <- readxl::read_excel(temp_file, sheet = NULL, range = "A1:F6", col_names = FALSE)
+vac <- readxl::read_excel(temp_file, sheet = NULL, range = "A1:F6", col_names = T, trim_ws = TRUE)
 unlink(temp_file)
-
-# coerce dataframe to a tibble
-as_tibble(tab)
-
-# extract by position
-
 ```
-
-
-
-
+Look at the data
 ```{r}
-library(tidyr)
-olddata_wide <- read.table(header = TRUE, text = '')
-olddata_
+vac
+
 ```
 
 
-
-
-
+# Clean the data
 ```{r}
-# change the 1st row to header row
-colnames(tab) <- as.character(unlist(tab[1,]))
-(tab2 = tab[-1, ])
-
+# Replace headers (column names) with more meaningful names
+headers <- c("Age", "Not_Vacc", "Full_Vacc", "Sev_Not_Vacc_per100k", "Sev_Full_Vacc_per100k", "Efficacy vs. Severe" )
+colnames(vac) <- headers
+vac
 ```
 
 
-
+Extract rows - removed rows 2 to 5
 ```{r}
-df <- read_xlsx(url("https://github.com/candrewxs/Vaccination/blob/main/israeli_vaccination_data_analysis_start.xlsx?raw=true"), sheet = NULL, range = "A1:F6", col_names = FALSE, col_types = "guess", na = "", trim_ws = TRUE, skip = 0)
+vac <- vac %>% slice(2:5)
+vac
 ```
 
 
+Subset the israel_vac_data dataset to obtain only the population vaccinated rows
+```{r}
+pop_vac <- vac[c(1,3),]
+pop_vac
+```
+
+
+Subset the israel_vac_data dataset to obtain only the percent vaccinated rows
+```{r}
+pct_vac <- vac[c(2,4),]
+pct_vac_headers <- c("Age", "Not_Vacc_pct", "Full_Vacc_pct", "Sev_Not_Vacc_per100k_pct", "Sev_Full_Vacc_per100k_pct", "Efficacy vs. Severe")
+colnames(pct_vac) <- pct_vac_headers
+pct_vacc <- pct_vac %>% select(Not_Vacc_pct:Sev_Full_Vacc_per100k_pct)
+pct_vacc
+```
+
+
+Combine the two dataframes (pop_vac and pct_vacc) to get a dataframe of the israel vaccination data
+```{r}
+israel_vaccination_data <- cbind(pop_vac, pct_vacc)
+israel_vaccination_data
+```
+
+
+Israel Vaccination rate
+```{r}
+isr <- israel_vaccination_data %>% select(Age, Not_Vacc, Not_Vacc_pct, Full_Vacc, Full_Vacc_pct, Sev_Not_Vacc_per100k, Sev_Not_Vacc_per100k_pct, Sev_Full_Vacc_per100k, Sev_Full_Vacc_per100k_pct, `Efficacy vs. Severe`)
+isr
+```
+
+
+Remove the non-numeric symbols
+```{r}
+isr$Not_Vacc_pct <- isr$Not_Vacc_pct %>% str_remove_all(pattern = "%")
+isr$Full_Vacc_pct <- isr$Full_Vacc_pct %>% str_remove_all(pattern = "%")
+isr$Not_Vacc <- isr$Not_Vacc %>% str_remove_all(pattern = ",")
+isr$Full_Vacc <- isr$Full_Vacc %>% str_remove_all(pattern = ",")
+isr
+```
+
+
+Convert the columns to numeric
+```{r}
+isr_age <- isr %>% select(Age)
+dat <- isr %>% select(-Age)
+dat_df <- unlist(sapply(dat, as.numeric)) #convert all the columns except the Age column to numeric
+dat_daf <- as.data.frame(dat_df)
+israel_Vax <- cbind(isr_age, dat_daf)
+israel_Vax
+```
+
+
+Compute the Sev_Not_Vacc_per100k_pct and Sev_Full_Vacc_per100k_pct
+```{r}
+israel_Vax <- israel_Vax %>% mutate(Sev_Not_Vacc_per100k_pct = round((Sev_Not_Vacc_per100k/Not_Vacc)*100000,1), 
+                             Sev_Full_Vacc_per100k_pct = round((Sev_Full_Vacc_per100k/Full_Vacc)*100000,1))
+israel_Vax
+```
+
+
+Compute the Efficacy vs. Severe
+Efficacy vs. Severe = 1 - (Sev_Full_Vacc_per100k_pct/Sev_Not_Vacc_per100k_pct)
+```{r}
+israel_Vaxx <- israel_Vax %>% mutate(`Efficacy vs. Severe` = round((1 - (Sev_Full_Vacc_per100k_pct/Sev_Not_Vacc_per100k_pct)),3)*100)
+
+israel_Vaxx
+```
+
+
+
+
+
+
+_Question 1: Do you have enough information to calculate the total population? What does this total population represent?_
+
+Solution 1:
+
+Compute population:
+```{r}
+ques1 <- israel_Vaxx %>% select(Age, Not_Vacc, Full_Vacc)
+ques1 <- ques1 %>% mutate(Population = Not_Vacc + Full_Vacc)
+ques1_pop_pct <- israel_Vaxx %>% transmute(Pop_pct = Not_Vacc_pct + Full_Vacc_pct)
+ques1 <- cbind(ques1, ques1_pop_pct)
+#compute estimated population per age group
+est_pop <- ques1 %>% transmute(Est_population = Population/(Pop_pct/100))
+ques1 <- cbind(ques1, est_pop)
+ques1
+```
+
+Compute the total estimated population:
+```{r}
+Est_total_population <- round(sum(ques1$Est_population), 0)
+paste0("The estimated total population from the given data is ", Est_total_population)
+```
+
+
+
+
+
+
+_Question 2: Calculate the Efficacy vs. Disease; Explain your results:_
+
+Solution 2:
+From the values computed above:
+```{r}
+israel_efficacy_severe <- israel_Vaxx %>% select(Age, Not_Vacc, Full_Vacc, `Efficacy vs. Severe`)
+israel_efficacy_severe
+```
+This means that the Efficacy vs. Severe is higher for those below 50 (92.3%) compared to those above 50 (85.2%) which implies that the vaccine is more effective for those 50 and below.
+
+
+
+
+
+
+_Question 3: From your calculation of efficacy vs. disease, are you able to compare the rate of severe cases in unvaccinated to vaccinated individuals?_
+
+Solution 3:
+Yes I am able to compare the rate of severe cases in unvaccinated individuals to vaccinated individuals. The Efficacy vs. Severe basically represents the percent reduction in severe infection in the vaccinated group relative to the unvaccinated. From the severe rates, we see that those who are unvaccinated are more likely to have severe cases (hospitalized) compared to those who are vaccinated for both age groups.
+
+
+
+Source:
+[GitHub](https://github.com/candrewxs/Vaccination/blob/main/Vaccination.Rmd)
+[RPubs](https://rpubs.com/blesned/vac)
 
