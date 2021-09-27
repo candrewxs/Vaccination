@@ -157,7 +157,6 @@ paste0("The estimated total population from the given data is ", Est_total_popul
 
 
 
-
 _Question 2: Calculate the Efficacy vs. Disease; Explain your results:_
 
 Solution 2:
